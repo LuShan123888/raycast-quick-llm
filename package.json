@@ -1,0 +1,150 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "multi-translate",
+  "title": "Multi Translate",
+  "description": "Translate selected text using multiple LLM models simultaneously, displaying results side by side",
+  "icon": "command-icon.png",
+  "author": "cian",
+  "categories": [
+    "Productivity"
+  ],
+  "license": "MIT",
+  "commands": [
+    {
+      "name": "translate",
+      "title": "Multi Translate",
+      "description": "Translate selected text with multiple LLM models in parallel",
+      "mode": "view"
+    }
+  ],
+  "preferences": [
+    {
+      "name": "model1Name",
+      "type": "textfield",
+      "required": false,
+      "title": "Model 1 Name",
+      "description": "Display name for Model 1 (e.g. GPT-4o)",
+      "default": "Model 1",
+      "placeholder": "GPT-4o"
+    },
+    {
+      "name": "model1BaseUrl",
+      "type": "textfield",
+      "required": false,
+      "title": "Model 1 Base URL",
+      "description": "OpenAI-compatible base URL (e.g. https://api.openai.com)",
+      "placeholder": "https://api.openai.com"
+    },
+    {
+      "name": "model1ApiKey",
+      "type": "password",
+      "required": false,
+      "title": "Model 1 API Key",
+      "description": "API key for Model 1"
+    },
+    {
+      "name": "model1Model",
+      "type": "textfield",
+      "required": false,
+      "title": "Model 1 ID",
+      "description": "Model identifier (e.g. gpt-4o)",
+      "placeholder": "gpt-4o"
+    },
+    {
+      "name": "model2Name",
+      "type": "textfield",
+      "required": false,
+      "title": "Model 2 Name",
+      "description": "Display name for Model 2",
+      "default": "Model 2",
+      "placeholder": "Claude Sonnet"
+    },
+    {
+      "name": "model2BaseUrl",
+      "type": "textfield",
+      "required": false,
+      "title": "Model 2 Base URL",
+      "description": "OpenAI-compatible base URL",
+      "placeholder": "https://api.openai.com"
+    },
+    {
+      "name": "model2ApiKey",
+      "type": "password",
+      "required": false,
+      "title": "Model 2 API Key",
+      "description": "API key for Model 2"
+    },
+    {
+      "name": "model2Model",
+      "type": "textfield",
+      "required": false,
+      "title": "Model 2 ID",
+      "description": "Model identifier",
+      "placeholder": "claude-sonnet-4-20250514"
+    },
+    {
+      "name": "model3Name",
+      "type": "textfield",
+      "required": false,
+      "title": "Model 3 Name",
+      "description": "Display name for Model 3 (leave empty to disable)",
+      "placeholder": "DeepSeek"
+    },
+    {
+      "name": "model3BaseUrl",
+      "type": "textfield",
+      "required": false,
+      "title": "Model 3 Base URL",
+      "description": "OpenAI-compatible base URL",
+      "placeholder": "https://api.deepseek.com"
+    },
+    {
+      "name": "model3ApiKey",
+      "type": "password",
+      "required": false,
+      "title": "Model 3 API Key",
+      "description": "API key for Model 3"
+    },
+    {
+      "name": "model3Model",
+      "type": "textfield",
+      "required": false,
+      "title": "Model 3 ID",
+      "description": "Model identifier",
+      "placeholder": "deepseek-chat"
+    },
+    {
+      "name": "systemPrompt",
+      "type": "textarea",
+      "required": false,
+      "title": "System Prompt",
+      "description": "System prompt for translation. Leave default for auto-translate.",
+      "default": "You are a professional translator. Translate the following text to Chinese. If the text is already in Chinese, translate it to English. Only output the translation result, nothing else."
+    },
+    {
+      "name": "maxTokens",
+      "type": "textfield",
+      "required": false,
+      "title": "Max Tokens",
+      "description": "Maximum tokens for each response",
+      "default": "2048"
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^1.83.0"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^1.0.11",
+    "@types/node": "22.5.4",
+    "@types/react": "18.3.3",
+    "eslint": "^8.57.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.4.5"
+  },
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "fix-lint": "ray lint --fix",
+    "lint": "ray lint"
+  }
+}
