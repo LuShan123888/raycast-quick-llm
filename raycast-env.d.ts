@@ -32,7 +32,7 @@ type ExtensionPreferences = {
   "model3ApiKey"?: string,
   /** Model 3 ID - Model identifier */
   "model3Model"?: string,
-  /** System Prompt - System prompt for translation. Leave default for auto-translate. */
+  /** System Prompt - System prompt sent to all models. Default: auto-translate. Change to polishing, summarization, etc. */
   "systemPrompt": unknown,
   /** Max Tokens - Maximum tokens for each response */
   "maxTokens": string
@@ -42,12 +42,12 @@ type ExtensionPreferences = {
 declare type Preferences = ExtensionPreferences
 
 declare namespace Preferences {
-  /** Preferences accessible in the `translate` command */
-  export type Translate = ExtensionPreferences & {}
+  /** Preferences accessible in the `quick-llm` command */
+  export type QuickLlm = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
-  /** Arguments passed to the `translate` command */
-  export type Translate = {}
+  /** Arguments passed to the `quick-llm` command */
+  export type QuickLlm = {}
 }
 

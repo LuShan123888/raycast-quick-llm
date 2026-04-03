@@ -1,6 +1,6 @@
 import { Action, ActionPanel, Detail, environment, getPreferenceValues, Icon, showToast, Toast } from "@raycast/api";
 import { useState, useEffect, useCallback } from "react";
-import { callAllModels, callModel } from "./api";
+import { callModel } from "./api";
 import { ModelConfig, ModelResult } from "./types";
 
 interface Preferences {
@@ -46,7 +46,7 @@ function getModelsFromPreferences(prefs: Preferences): ModelConfig[] {
 function buildMarkdown(selectedText: string, results: ModelResult[]): string {
   const parts: string[] = [];
 
-  parts.push(`## Original\n\n${selectedText}\n\n---\n`);
+  parts.push(`## Input\n\n${selectedText}\n\n---\n`);
 
   for (const result of results) {
     if (result.loading) {
@@ -151,7 +151,7 @@ export default function Command() {
     <Detail
       isLoading={isLoading}
       markdown={markdown}
-      navigationTitle="Multi Translate"
+      navigationTitle="Quick LLM"
       actions={
         <ActionPanel>
           <Action
@@ -161,7 +161,7 @@ export default function Command() {
           />
           {allContent && (
             <Action.CopyToClipboard
-              title="Copy All Translations"
+              title="Copy All Results"
               content={allContent}
               shortcut={{ modifiers: ["cmd"], key: "c" }}
             />

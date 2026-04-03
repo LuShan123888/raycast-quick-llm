@@ -1,8 +1,8 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
-  "name": "multi-translate",
-  "title": "Multi Translate",
-  "description": "Translate selected text using multiple LLM models simultaneously, displaying results side by side",
+  "name": "quick-llm",
+  "title": "Quick LLM",
+  "description": "Send selected text to multiple LLM models in parallel for translation, polishing, summarization, and more",
   "icon": "command-icon.png",
   "author": "cian",
   "categories": [
@@ -11,9 +11,9 @@
   "license": "MIT",
   "commands": [
     {
-      "name": "translate",
-      "title": "Multi Translate",
-      "description": "Translate selected text with multiple LLM models in parallel",
+      "name": "quick-llm",
+      "title": "Quick LLM",
+      "description": "Send selected text to multiple LLM models in parallel",
       "mode": "view"
     }
   ],
@@ -118,7 +118,7 @@
       "type": "textarea",
       "required": false,
       "title": "System Prompt",
-      "description": "System prompt for translation. Leave default for auto-translate.",
+      "description": "System prompt sent to all models. Default: auto-translate. Change to polishing, summarization, etc.",
       "default": "You are a professional translator. Translate the following text to Chinese. If the text is already in Chinese, translate it to English. Only output the translation result, nothing else."
     },
     {
