@@ -1,58 +1,41 @@
-import { Action, ActionPanel, Detail, environment, getPreferenceValues, Icon, showToast, Toast } from "@raycast/api";
-import { useState, useEffect, useCallback } from "react";
-import { callModel } from "./api";
-import { ModelConfig, ModelResult } from "./types";
+import { Action, ActionPanel, Clipboard, Detail, environment, Form, Icon, LocalStorage, showToast, Toast } from "@raycast/api";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { callModelStream } from "./api";
+import { AppConfig, ModelConfig, ModelResult } from "./types";
 
-interface Preferences {
-  model1Name: string;
-  model1BaseUrl: string;
-  model1ApiKey: string;
-  model1Model: string;
-  model2Name: string;
-  model2BaseUrl: string;
-  model2ApiKey: string;
-  model2Model: string;
-  model3Name: string;
-  model3BaseUrl: string;
-  model3ApiKey: string;
-  model3Model: string;
-  systemPrompt: string;
-  maxTokens: string;
-}
+const STORAGE_KEY = "quick-llm-config";
 
-function getModelsFromPreferences(prefs: Preferences): ModelConfig[] {
-  const models: ModelConfig[] = [];
+const DEFAULT_SYSTEM_PROMPT =
+  "You are a professional translator. Translate the following text to Chinese. If the text is already in Chinese, translate it to English. Only output the translation result, nothing else.";
 
-  const entries: Array<[string, string, string, string]> = [
-    [prefs.model1Name, prefs.model1BaseUrl, prefs.model1ApiKey, prefs.model1Model],
-    [prefs.model2Name, prefs.model2BaseUrl, prefs.model2ApiKey, prefs.model2Model],
-    [prefs.model3Name, prefs.model3BaseUrl, prefs.model3ApiKey, prefs.model3Model],
-  ];
+const DEFAULT_CONFIG: AppConfig = {
+  models: [],
+  systemPrompt: DEFAULT_SYSTEM_PROMPT,
+  maxTokens: 2048,
+};
 
-  for (const [name, baseUrl, apiKey, model] of entries) {
-    if (baseUrl && apiKey && model) {
-      models.push({
-        name: name || model,
-        baseUrl,
-        apiKey,
-        model,
-      });
-    }
+async function loadConfig(): Promise<AppConfig> {
+  const raw = await LocalStorage.getItem<string>(STORAGE_KEY);
+  if (!raw) return { ...DEFAULT_CONFIG };
+  try {
+    return { ...DEFAULT_CONFIG, ...JSON.parse(raw) } as AppConfig;
+  } catch {
+    return { ...DEFAULT_CONFIG };
   }
-
-  return models;
 }
 
-function buildMarkdown(selectedText: string, results: ModelResult[]): string {
+function buildMarkdown(text: string, results: ModelResult[]): string {
   const parts: string[] = [];
 
-  parts.push(`## Input\n\n${selectedText}\n\n---\n`);
+  parts.push(`## Input\n\n${text}\n\n---\n`);
 
   for (const result of results) {
     if (result.loading) {
-      parts.push(`### ${result.name}\n\n*Loading...*\n`);
+      parts.push(`### ${result.name}\n\n*Connecting...*\n`);
     } else if (result.error) {
-      parts.push(`### ${result.name}\n\n**Error:** ${result.error}\n`);
+      parts.push(`### ${result.name} ❌\n\n**Error:** ${result.error}\n`);
+    } else if (result.streaming) {
+      parts.push(`### ${result.name} ⏳\n\n${result.content || " "}\n`);
     } else {
       const duration = result.duration ? ` (${(result.duration / 1000).toFixed(1)}s)` : "";
       parts.push(`### ${result.name}${duration}\n\n${result.content}\n`);
@@ -63,101 +46,176 @@ function buildMarkdown(selectedText: string, results: ModelResult[]): string {
   return parts.join("\n");
 }
 
-export default function Command() {
-  const [selectedText, setSelectedText] = useState<string>("");
-  const [results, setResults] = useState<ModelResult[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [models, setModels] = useState<ModelConfig[]>([]);
+type View =
+  | { type: "input" }
+  | { type: "result"; text: string }
+  | { type: "unconfigured" };
 
-  const prefs = getPreferenceValues<Preferences>();
-  const systemPrompt = prefs.systemPrompt;
-  const maxTokens = parseInt(prefs.maxTokens || "2048", 10);
+export default function Command() {
+  const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
+  const [results, setResults] = useState<ModelResult[]>([]);
+  const [view, setView] = useState<View>({ type: "input" });
+  const abortRef = useRef(false);
 
   const doTranslate = useCallback(
-    async (text: string, modelConfigs: ModelConfig[]) => {
-      if (!text.trim() || modelConfigs.length === 0) return;
+    (text: string, models: ModelConfig[], prompt: string, tokens: number) => {
+      if (!text.trim() || models.length === 0) return;
 
-      setIsLoading(true);
+      abortRef.current = false;
+      setView({ type: "result", text });
 
-      // Initialize with loading states, then update each model as it completes
-      const initialResults: ModelResult[] = modelConfigs.map((m) => ({
+      // 初始化：所有模型为 loading 状态
+      const initial: ModelResult[] = models.map((m) => ({
         name: m.name,
         content: "",
         loading: true,
+        streaming: false,
       }));
-      setResults(initialResults);
+      setResults(initial);
 
-      // Call each model independently and update state progressively
-      const promises = modelConfigs.map(async (model, index) => {
-        const result = await callModel(text, model, systemPrompt, maxTokens);
-        setResults((prev) => {
-          const updated = [...prev];
-          updated[index] = result;
-          return updated;
-        });
-        return result;
+      // 并行启动所有模型的流式调用
+      models.forEach((model, index) => {
+        callModelStream(
+          text,
+          model,
+          prompt,
+          tokens,
+          // onChunk: 逐步更新内容
+          (chunk) => {
+            if (abortRef.current) return;
+            setResults((prev) => {
+              const updated = [...prev];
+              const cur = updated[index];
+              if (cur.loading || cur.streaming) {
+                updated[index] = { ...cur, content: cur.content + chunk, loading: false, streaming: true };
+              }
+              return updated;
+            });
+          },
+          // onDone: 标记完成
+          (duration, error) => {
+            if (abortRef.current) return;
+            setResults((prev) => {
+              const updated = [...prev];
+              updated[index] = { ...updated[index], streaming: false, duration, error: error || undefined };
+              return updated;
+            });
+          },
+        );
       });
-
-      await Promise.all(promises);
-      setIsLoading(false);
     },
-    [systemPrompt, maxTokens],
+    [],
   );
+
+  // 组件卸载时中止
+  useEffect(() => {
+    return () => {
+      abortRef.current = true;
+    };
+  }, []);
 
   useEffect(() => {
     async function init() {
-      const modelConfigs = getModelsFromPreferences(prefs);
+      const cfg = await loadConfig();
+      setConfig(cfg);
 
-      if (modelConfigs.length === 0) {
-        await showToast({
-          style: Toast.Style.Failure,
-          title: "No models configured",
-          message: "Please configure at least one model in extension settings",
-        });
-        setIsLoading(false);
+      if (cfg.models.length === 0) {
+        setView({ type: "unconfigured" });
         return;
       }
 
-      setModels(modelConfigs);
-
+      // 优先获取选中文本
       try {
-        const text = await environment.getSelectedText();
-        const trimmed = text.trim();
-
-        if (trimmed) {
-          setSelectedText(trimmed);
-          await doTranslate(trimmed, modelConfigs);
-        } else {
-          setSelectedText("(no text selected)");
-          setIsLoading(false);
+        const text = (await environment.getSelectedText()).trim();
+        if (text) {
+          doTranslate(text, cfg.models, cfg.systemPrompt, cfg.maxTokens);
+          return;
         }
       } catch {
-        setSelectedText("(failed to get selected text — grant Accessibility permission in System Settings)");
-        setIsLoading(false);
+        // getSelectedText 失败，继续尝试剪贴板
       }
+
+      // 回退到剪贴板内容
+      try {
+        const clipboard = (await Clipboard.read()).trim();
+        if (clipboard) {
+          doTranslate(clipboard, cfg.models, cfg.systemPrompt, cfg.maxTokens);
+          return;
+        }
+      } catch {
+        // Clipboard 也失败，显示输入表单
+      }
+
+      // 都没有，显示输入表单
+      setView({ type: "input" });
     }
 
     init();
-  }, []);
+  }, [doTranslate]);
 
-  const markdown = selectedText ? buildMarkdown(selectedText, results) : "# Loading...";
+  // 未配置模型
+  if (view.type === "unconfigured") {
+    return (
+      <Detail
+        markdown="# Quick LLM\n\nNo models configured yet.\n\nOpen **Configure Models** to add your first model."
+        actions={
+          <ActionPanel>
+            <Action.Open title="Configure Models" icon={Icon.Gear} target="raycast://extensions/raycast-quick-llm/configure" />
+          </ActionPanel>
+        }
+      />
+    );
+  }
+
+  // 输入表单
+  if (view.type === "input") {
+    return (
+      <Form
+        navigationTitle="Quick LLM"
+        actions={
+          <ActionPanel>
+            <Action.SubmitForm
+              title="Translate"
+              onSubmit={(values) => {
+                const text = values.text.trim();
+                if (text) {
+                  doTranslate(text, config.models, config.systemPrompt, config.maxTokens);
+                } else {
+                  showToast({ style: Toast.Style.Failure, title: "Please enter text" });
+                }
+              }}
+            />
+            <Action.Open title="Configure Models" icon={Icon.Gear} target="raycast://extensions/raycast-quick-llm/configure" />
+          </ActionPanel>
+        }
+      >
+        <Form.TextArea id="text" title="Text" placeholder="Enter or paste text to translate..." />
+      </Form>
+    );
+  }
+
+  // 结果视图
+  const markdown = buildMarkdown(view.text, results);
+  const hasResults = results.some((r) => r.content && !r.error);
 
   const allContent = results
-    .filter((r) => r.content)
+    .filter((r) => r.content && !r.error)
     .map((r) => r.content)
     .join("\n\n");
 
   return (
     <Detail
-      isLoading={isLoading}
       markdown={markdown}
       navigationTitle="Quick LLM"
       actions={
         <ActionPanel>
-          <Action
-            title="Re-translate"
-            icon={Icon.ArrowClockwise}
-            onAction={() => doTranslate(selectedText, models)}
+          <Action title="Re-translate" icon={Icon.ArrowClockwise} onAction={() => doTranslate(view.text, config.models, config.systemPrompt, config.maxTokens)} />
+          <Action title="New Input" icon={Icon.Document} onAction={() => { setView({ type: "input" }); setResults([]); }} shortcut={{ modifiers: ["cmd"], key: "n" }} />
+          <Action.Open
+            title="Configure Models"
+            icon={Icon.Gear}
+            target="raycast://extensions/raycast-quick-llm/configure"
+            shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
           />
           {allContent && (
             <Action.CopyToClipboard
@@ -168,20 +226,13 @@ export default function Command() {
           )}
           {results.map(
             (result, index) =>
-              result.content && (
-                <Action.CopyToClipboard
-                  key={index}
-                  title={`Copy ${result.name} Result`}
-                  content={result.content}
-                  shortcut={{ modifiers: ["cmd", "shift"], key: String(index + 1) as "1" | "2" | "3" }}
-                />
+              result.content && !result.error && (
+                <ActionPanel.Submenu key={index} title={result.name} icon={Icon.Bot}>
+                  <Action.CopyToClipboard title="Copy Result" content={result.content} />
+                  <Action.Paste title="Paste Result" content={result.content} />
+                </ActionPanel.Submenu>
               ),
           )}
-          <Action.Paste
-            title="Paste First Result"
-            content={results[0]?.content || ""}
-            shortcut={{ modifiers: ["cmd"], key: "p" }}
-          />
         </ActionPanel>
       }
     />
