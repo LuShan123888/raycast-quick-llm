@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Detail, environment, Form, getSelectedText, Icon, LocalStorage, showToast, Toast } from "@raycast/api";
+import { Action, ActionPanel, Detail, environment, Form, getSelectedText, Icon, List, LocalStorage, showToast, Toast } from "@raycast/api";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { callModelStream } from "./api";
 import { AppConfig, ModelConfig, ModelResult } from "./types";
@@ -26,45 +26,6 @@ async function loadConfig(): Promise<AppConfig> {
 
 async function saveConfig(config: AppConfig): Promise<void> {
   await LocalStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-}
-
-function buildMarkdown(text: string, results: ModelResult[]): string {
-  const parts: string[] = [];
-
-  // 按 templateId 分组
-  const grouped = new Map<string, ModelResult[]>();
-  for (const r of results) {
-    const tid = r.templateId || "_";
-    if (!grouped.has(tid)) grouped.set(tid, []);
-    grouped.get(tid)!.push(r);
-  }
-
-  const isMultiTemplate = grouped.size > 1;
-  parts.push(`## Input\n\n> ${text}\n`);
-
-  for (const [tid, items] of grouped) {
-    parts.push("---\n");
-    const tplName = items[0]?.templateName;
-    if (isMultiTemplate && tplName) {
-      parts.push(`## ${tplName}\n`);
-    }
-    for (const result of items) {
-      const label = isMultiTemplate && tplName ? result.name : `${tplName} · ${result.name}`;
-      if (result.loading) {
-        parts.push(`### ${label}\n\n*Connecting...*\n`);
-      } else if (result.error) {
-        parts.push(`### ${label}\n\n**Error:** ${result.error}\n`);
-      } else if (result.streaming) {
-        parts.push(`### ${label}\n\n${result.content || " "}\n`);
-      } else {
-        const duration = result.duration ? ` — ${(result.duration / 1000).toFixed(1)}s` : "";
-        parts.push(`### ${label}${duration}\n\n${result.content}\n`);
-      }
-      parts.push("");
-    }
-  }
-
-  return parts.join("\n");
 }
 
 type View =
@@ -231,55 +192,70 @@ export default function Command() {
     .join("\n\n");
 
   return (
-    <Detail
-      markdown={buildMarkdown(view.text, results)}
-      navigationTitle="Quick LLM"
-      actions={
-        <ActionPanel>
-          <Action title="Re-run" icon={Icon.ArrowClockwise} onAction={() => doProcess(view.text, config.models, getActivePrompts(config), config.maxTokens)} />
-          <Action title="New Input" icon={Icon.Document} onAction={() => { setView({ type: "input" }); setResults([]); }} shortcut={{ modifiers: ["cmd"], key: "n" }} />
-          <Action.Open
-            title="Configure Models"
-            icon={Icon.Gear}
-            target="raycast://extensions/raycast-quick-llm/configure"
-            shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+    <List navigationTitle="Quick LLM" isShowingDetail>
+      {results.map((result, index) => {
+        const title = result.templateName ? `${result.templateName} · ${result.name}` : result.name;
+        const preview = result.content ? result.content.split("\n").find((l) => l.trim())?.substring(0, 80) : "";
+        const duration = result.duration ? `${(result.duration / 1000).toFixed(1)}s` : "";
+        const detailContent = result.loading
+          ? "*Connecting...*"
+          : result.error
+            ? `**Error:** ${result.error}`
+            : result.content || "";
+        return (
+          <List.Item
+            key={index}
+            title={title}
+            subtitle={preview || undefined}
+            accessories={[
+              ...(duration ? [{ text: duration }] : []),
+              ...(result.error ? [{ icon: Icon.XMarkCircle }] : []),
+              ...(result.loading ? [{ icon: Icon.Clock }] : []),
+            ]}
+            detail={
+              <List.Item.Detail
+                markdown={`## Input\n\n> ${view.text}\n\n---\n\n${detailContent}`}
+                metadata={
+                  <List.Item.Detail.Metadata>
+                    <List.Item.Detail.Metadata.Label title="Template" text={result.templateName || "Default"} />
+                    <List.Item.Detail.Metadata.Label title="Model" text={result.name} />
+                    {duration && <List.Item.Detail.Metadata.Label title="Duration" text={duration} />}
+                  </List.Item.Detail.Metadata>
+                }
+              />
+            }
+            actions={
+              <ActionPanel>
+                <Action title="Re-run" icon={Icon.ArrowClockwise} onAction={() => doProcess(view.text, config.models, getActivePrompts(config), config.maxTokens)} />
+                <Action title="New Input" icon={Icon.Document} onAction={() => { setView({ type: "input" }); setResults([]); }} shortcut={{ modifiers: ["cmd"], key: "n" }} />
+                <Action.Open title="Configure Models" icon={Icon.Gear} target="raycast://extensions/raycast-quick-llm/configure" shortcut={{ modifiers: ["cmd", "shift"], key: "c" }} />
+                <Action.Open title="Prompt Templates" icon={Icon.TextDocument} target="raycast://extensions/raycast-quick-llm/templates" shortcut={{ modifiers: ["cmd", "shift"], key: "p" }} />
+                {allContent && (
+                  <Action.CopyToClipboard title="Copy All Results" content={allContent} shortcut={{ modifiers: ["cmd"], key: "c" }} />
+                )}
+                {result.content && !result.error && (
+                  <>
+                    <Action.CopyToClipboard title="Copy Result" content={result.content} />
+                    <Action.Paste title="Paste Result" content={result.content} />
+                  </>
+                )}
+                {config.promptTemplates.length > 0 && (
+                  <ActionPanel.Submenu title="Switch Template" icon={Icon.SpeechBubble}>
+                    {config.promptTemplates.map((tpl) => (
+                      <Action
+                        key={tpl.id}
+                        title={config.activeTemplateIds.includes(tpl.id) ? `${tpl.name} ✓` : tpl.name}
+                        icon={config.activeTemplateIds.includes(tpl.id) ? Icon.Checkmark : undefined}
+                        onAction={switchTemplate(tpl.id)}
+                      />
+                    ))}
+                  </ActionPanel.Submenu>
+                )}
+              </ActionPanel>
+            }
           />
-          <Action.Open
-            title="Prompt Templates"
-            icon={Icon.TextDocument}
-            target="raycast://extensions/raycast-quick-llm/templates"
-            shortcut={{ modifiers: ["cmd", "shift"], key: "p" }}
-          />
-          {allContent && (
-            <Action.CopyToClipboard
-              title="Copy All Results"
-              content={allContent}
-              shortcut={{ modifiers: ["cmd"], key: "c" }}
-            />
-          )}
-          {config.promptTemplates.length > 0 && (
-            <ActionPanel.Submenu title="Prompt Templates" icon={Icon.SpeechBubble}>
-              {config.promptTemplates.map((tpl) => (
-                <Action
-                  key={tpl.id}
-                  title={config.activeTemplateIds.includes(tpl.id) ? `${tpl.name} ✓` : tpl.name}
-                  icon={config.activeTemplateIds.includes(tpl.id) ? Icon.Checkmark : undefined}
-                  onAction={switchTemplate(tpl.id)}
-                />
-              ))}
-            </ActionPanel.Submenu>
-          )}
-          {results.map(
-            (result, index) =>
-              result.content && !result.error && (
-                <ActionPanel.Submenu key={index} title={`${result.templateName || ""} · ${result.name}`} icon={Icon.Bot}>
-                  <Action.CopyToClipboard title="Copy Result" content={result.content} />
-                  <Action.Paste title="Paste Result" content={result.content} />
-                </ActionPanel.Submenu>
-              ),
-          )}
-        </ActionPanel>
-      }
-    />
+        );
+      })}
+    </List>
   );
 }
