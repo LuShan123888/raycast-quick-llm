@@ -17,6 +17,8 @@ declare namespace Preferences {
   export type QuickLlm = ExtensionPreferences & {}
   /** Preferences accessible in the `configure` command */
   export type Configure = ExtensionPreferences & {}
+  /** Preferences accessible in the `templates` command */
+  export type Templates = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
@@ -24,5 +26,7 @@ declare namespace Arguments {
   export type QuickLlm = {}
   /** Arguments passed to the `configure` command */
   export type Configure = {}
+  /** Arguments passed to the `templates` command */
+  export type Templates = {}
 }
 

@@ -14,14 +14,7 @@ import { AppConfig, ModelConfig } from "./types";
 
 const STORAGE_KEY = "quick-llm-config";
 
-const DEFAULT_SYSTEM_PROMPT =
-  "You are a professional translator. Translate the following text to Chinese. If the text is already in Chinese, translate it to English. Only output the translation result, nothing else.";
-
-const DEFAULT_CONFIG: AppConfig = {
-  models: [],
-  systemPrompt: DEFAULT_SYSTEM_PROMPT,
-  maxTokens: 2048,
-};
+const DEFAULT_CONFIG: AppConfig = { models: [], promptTemplates: [], activeTemplateIds: [], maxTokens: 2048 };
 
 async function loadConfig(): Promise<AppConfig> {
   const raw = await LocalStorage.getItem<string>(STORAGE_KEY);
@@ -164,7 +157,6 @@ export default function ConfigureCommand() {
               onSubmit={async (values) => {
                 const updated = {
                   ...config,
-                  systemPrompt: values.systemPrompt,
                   maxTokens: parseInt(values.maxTokens, 10) || 2048,
                 };
                 await saveConfig(updated);
@@ -177,12 +169,6 @@ export default function ConfigureCommand() {
           </ActionPanel>
         }
       >
-        <Form.TextArea
-          id="systemPrompt"
-          title="System Prompt"
-          placeholder="You are a professional translator..."
-          defaultValue={config.systemPrompt}
-        />
         <Form.TextField id="maxTokens" title="Max Tokens" placeholder="2048" defaultValue={String(config.maxTokens)} />
       </Form>
     );

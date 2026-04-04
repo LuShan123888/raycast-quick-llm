@@ -6,9 +6,16 @@ export interface ModelConfig {
   model: string;
 }
 
+export interface PromptTemplate {
+  id: string;
+  name: string;
+  prompt: string;
+}
+
 export interface AppConfig {
   models: ModelConfig[];
-  systemPrompt: string;
+  promptTemplates: PromptTemplate[];
+  activeTemplateIds: string[];
   maxTokens: number;
 }
 
@@ -19,4 +26,6 @@ export interface ModelResult {
   streaming: boolean;
   error?: string;
   duration?: number;
+  templateId?: string;
+  templateName?: string;
 }

@@ -1,7 +1,6 @@
 import { ModelConfig, ModelResult } from "./types";
 
-const SYSTEM_PROMPT_DEFAULT =
-  "You are a professional translator. Translate the following text to Chinese. If the text is already in Chinese, translate it to English. Only output the translation result, nothing else.";
+const SYSTEM_PROMPT_DEFAULT = "You are a helpful assistant. Process the following text according to the user's needs.";
 
 // 非流式调用（降级备用）
 export async function callModel(

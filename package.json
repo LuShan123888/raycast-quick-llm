@@ -2,7 +2,7 @@
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "quick-llm",
   "title": "Quick LLM",
-  "description": "Send selected text to multiple LLM models in parallel for translation, polishing, summarization, and more",
+  "description": "Send text to multiple LLM models in parallel with streaming responses",
   "icon": "command-icon.png",
   "author": "cian",
   "categories": [
@@ -13,13 +13,19 @@
     {
       "name": "quick-llm",
       "title": "Quick LLM",
-      "description": "Send selected text to multiple LLM models in parallel",
+      "description": "Send text to multiple LLM models in parallel with streaming responses",
       "mode": "view"
     },
     {
       "name": "configure",
       "title": "Configure Models",
       "description": "Add, edit, or remove LLM model configurations",
+      "mode": "view"
+    },
+    {
+      "name": "templates",
+      "title": "Prompt Templates",
+      "description": "Manage prompt templates for different tasks",
       "mode": "view"
     }
   ],
